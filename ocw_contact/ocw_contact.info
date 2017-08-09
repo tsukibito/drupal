@@ -1,0 +1,8 @@
+; $Id$
+name = OCW Contact
+description = "OCW コンタクトフォームモジュール"
+package = OCW
+version = "6.x-1.5"
+core = "6.x"
+dependencies[] = ocw_admin
+dependencies[] = path

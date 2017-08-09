@@ -1,0 +1,61 @@
+.contents-list {
+}
+
+.contents-list p {
+	padding: 5px;
+	background-color: #eee;
+	border: 1px solid #ccc;
+	font-weight: bold;
+}
+
+.contents-list ul {
+	margin-top: 5px;
+	margin-bottom: 2px;
+	padding-top: 5px;
+	padding-bottom: 5px;
+	background-color: #eee;
+	border: 1px solid #ccc;
+	height: 170px;
+	overflow: auto;
+}
+
+/* default */
+li.content-file { list-style-image: url(icons/default.gif); }
+li.content-htm { list-style-image: url(icons/html.gif); }
+li.content-html { list-style-image: url(icons/html.gif); }
+
+/* others */
+li.content-ai { list-style-image: url(icons/ai.gif); }
+li.content-avi { list-style-image: url(icons/avi.gif); }
+li.content-bmp { list-style-image: url(icons/bmp.gif); }
+li.content-cs { list-style-image: url(icons/cs.gif); }
+li.content-dll { list-style-image: url(icons/dll.gif); }
+li.content-doc { list-style-image: url(icons/doc.gif); }
+li.content-docx { list-style-image: url(icons/doc.gif); }
+li.content-exe { list-style-image: url(icons/exe.gif); }
+li.content-fla { list-style-image: url(icons/fla.gif); }
+li.content-flv { list-style-image: url(icons/fla.gif); }
+li.content-gif { list-style-image: url(icons/gif.gif); }
+li.content-image { list-style-image: url(icons/image.gif); }
+li.content-jpg { list-style-image: url(icons/jpg.gif); }
+li.content-jpeg { list-style-image: url(icons/jpg.gif); }
+li.content-js { list-style-image: url(icons/js.gif); }
+li.content-mbd { list-style-image: url(icons/mbd.gif); }
+li.content-mp3 { list-style-image: url(icons/mp3.gif); }
+li.content-pdf { list-style-image: url(icons/pdf.gif); }
+li.content-ppt { list-style-image: url(icons/ppt.gif); }
+li.content-pptx { list-style-image: url(icons/ppt.gif); }
+li.content-png { list-style-image: url(icons/png.gif); }
+li.content-rdp { list-style-image: url(icons/rdp.gif); }
+li.content-swf { list-style-image: url(icons/swf.gif); }
+li.content-swt { list-style-image: url(icons/swt.gif); }
+li.content-txt { list-style-image: url(icons/txt.gif); }
+li.content-vsd { list-style-image: url(icons/vsd.gif); }
+li.content-wmv { list-style-image: url(icons/wmv.gif); }
+li.content-xls { list-style-image: url(icons/xls.gif); }
+li.content-xml { list-style-image: url(icons/xml.gif); }
+li.content-xml { list-style-image: url(icons/xml.gif); }
+
+li.dir { list-style-image: url(icons/dir.gif); }
+li.dir-open { list-style-image: url(icons/dir-open.gif); }
+li.dir-up { list-style-image: url(icons/dir-up.gif); }

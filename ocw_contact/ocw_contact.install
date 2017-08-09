@@ -1,0 +1,66 @@
+<?php
+
+function ocw_contact_install() {
+	drupal_install_schema('ocw_contact');
+}
+
+function ocw_contact_uninstall() {
+	db_query("DELETE FROM {menu_links} WHERE module = 'ocw_contact'");
+	menu_cache_clear_all();
+	drupal_uninstall_schema('ocw_contact');
+}
+
+function ocw_contact_schema() {
+	$schema['ocw_contacts'] = array(
+		'description' => 'OCW Contacts',
+		'fields' => array(
+			'uid' => array(
+				'description' => 'Unique ID',
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE
+			),
+			'name' => array(
+				'description' => 'Name',
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => TRUE,
+				'default' => ''
+			),
+			'mail' => array(
+				'description' => 'E-Mail Adress',
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => TRUE,
+				'default' => ''
+			),
+			'who' => array(
+				'description' => 'Who',
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0
+			),
+			'type' => array(
+				'description' => 'Question type',
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0
+			),
+			'content' => array(
+				'description' => 'Content',
+				'type' => 'text',
+				'not null' => TRUE,
+				'size' => 'big',
+			),
+			'date' => array(
+				'description' => 'Contact date',
+				'type' => 'datetime',
+				'not null' => TRUE,
+			),
+		),
+		'primary key' => array('uid'),
+	);
+
+	return $schema;
+}
+

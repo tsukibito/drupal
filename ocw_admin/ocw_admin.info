@@ -1,0 +1,7 @@
+; $Id$
+name = OCW Admin
+description = "OCW HP管理モジュール"
+package = OCW
+version = "6.x-1.5"
+core = "6.x"
+dependencies[] = path

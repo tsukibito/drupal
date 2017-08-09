@@ -1,0 +1,664 @@
+<?php
+
+function ocw_contact_perm() {
+	return array('view ocw contact', 'administer ocw contact');
+}
+
+function ocw_contact_init() {
+	if (user_access('view ocw contact')) {
+	}
+}
+
+function ocw_contact_theme() {
+	return array(
+		'ocw_content' => array(
+			'arguments' => array('left' => NULL, 'center' => NULL, 'right' => NULL),
+			'template' => 'ocw_content',
+		),
+		'ocw_dragable_table_form' => array(
+			'arguments' => array('form' => NULL),
+		),
+	);
+}
+
+function theme_ocw_dragable_table_form($form) {
+	static $contact_options_form_id = 0;
+	$form_id = 'ocw_dragable_table-'.($contact_options_form_id++).'-sort';
+	
+	drupal_add_tabledrag($form_id, 'order', 'sibling', 'sort');
+	
+	$header = array('');
+	$keys = array();
+	foreach($form['#header'] as $key => $value) {
+		$header[] = $value;
+		$keys[] = $key;
+	}
+	$header[] = array('sort' => '');
+	
+	if ($form['#rows']) {
+		foreach($form['#rows'] as $index => $values) {
+			$form[$index]['sort']['#attributes'] = array('class' => 'sort');
+			
+			$row = array('');
+			foreach($keys as $id => $key) {
+				$row[] = $values[$key];
+			}
+			$row[] = drupal_render($form[$index]['sort']);
+			$rows[] = array('data' => $row, 'class' => 'draggable');
+		}
+	}
+
+	$output = '<div class="clear-box"><p>';
+	$output.= theme('table', $header, $rows, array('id' => $form_id));
+	$output.= '</p></div>';
+
+	return $output;
+}
+
+function get_ocw_dragable_table($header, $values, $weight=0) {
+	$table = array(
+		'#tree' => TRUE,
+		'#theme' => 'ocw_dragable_table_form',
+		'#weight' => $weight,
+		'#header' => $header
+	);
+	$table['#rows'] = array();
+	foreach($values as $index => $value) {
+		$table['#rows'][] = $value;
+		$table[] = array(
+			'sort' => array(
+				'#type' => 'weight',
+				'#delta' => count($values),
+				'#default_value' => $index,
+			)
+		);
+	}
+	
+	return $table;
+}
+
+function ocw_contact_menu() {
+	$items = array();
+	
+	$items['admin/OCW/contact'] = array(
+		'title' => '問い合せ',
+		'description' => '問い合せフォームの管理',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_contact_admin_form'),
+		'access arguments' => array('administer ocw contact'),
+	);
+	
+	$items['admin/OCW/contact/view'] = array(
+		'title' => '表示',
+		'page callback' => 'drupal_goto',
+		'page arguments' => array('OCW/contact'),
+		'access arguments' => array('view ocw contact'),
+		'type' => MENU_LOCAL_TASK,
+		'weight' => -10,
+	);
+	
+	$items['admin/OCW/contact/edit'] = array(
+		'title' => '編集',
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'weight' => -9,
+	);
+	
+	$items['admin/OCW/contact/list'] = array(
+		'title' => '問い合せ一覧',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_contact_list_form'),
+		'access arguments' => array('administer ocw contact'),
+		'type' => MENU_LOCAL_TASK,
+		'weight' => -8,
+	);
+	
+	$items['OCW/contact'] = array(
+		'title' => 'お問い合せ',
+		'page callback' => 'ocw_contact_main',
+		'access arguments' => array('view ocw contact'),
+		'type' => MENU_CALLBACK,
+	);
+	
+	$items['OCW/contact/view'] = array(
+		'title' => '表示',
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'weight' => -10,
+	);
+	
+	$items['OCW/contact/edit'] = array(
+		'title' => '編集',
+		'page callback' => 'drupal_goto',
+		'page arguments' => array('admin/OCW/contact'),
+		'access arguments' => array('administer ocw contact'),
+		'type' => MENU_LOCAL_TASK,
+		'weight' => -9,
+	);
+	
+	$items['OCW/contact/list'] = array(
+		'title' => '問い合せ一覧',
+		'page callback' => 'drupal_goto',
+		'page arguments' => array('admin/OCW/contact/list'),
+		'access arguments' => array('administer ocw contact'),
+		'type' => MENU_LOCAL_TASK,
+		'weight' => -8,
+	);
+	
+	return $items;
+}
+
+function ocw_contact_admin_form($form_state) {
+	$setting_values = get_ocw_db_values('ocw_contents', 'uid, body, title, options', 'type="admin" and tag="ocw_contact"', 'tag');
+	$setting_values = $setting_values['ocw_contact'];
+	$options = unserialize($setting_values['options']);
+	
+	$who_options = $options['who']? $options['who']: array();
+	$question_options = $options['type']? $options['type']: array();
+	
+	$form = array();
+	
+	$form['contents_info_field'] = array(
+		'#type' => 'fieldset',
+		'#title' => 'コンテンツの設定',
+		'#weight' => -10
+	);
+
+	$form['contents_info_field']['title'] = array(
+		'#title' => 'タイトル',
+		'#type' => 'textfield',
+		'#description' => 'コンテンツのタイトル',
+		'#default_value' => $setting_values['title'],
+		'#required' => TRUE,
+		'#weight' => -10,
+	);
+
+	$form['contents_info_field']['alias'] = array(
+		'#title' => 'エイリアス',
+		'#type' => 'textfield',
+		'#description' => 'コンテンツのURLエイリアス',
+		'#default_value' => db_result(db_query("SELECT dst FROM {url_alias} WHERE src='%s'", 'OCW/contact')),
+		'#required' => TRUE,
+		'#weight' => -9,
+	);
+	
+	$form['message_field'] = array(
+		'#type' => 'fieldset',
+		'#title' => '問い合わせフォームメッセージ',
+	);
+	
+	$form['message_field']['contact_message'] = array(
+		'#type' => 'textarea',
+		'#title' => '内容',
+		'#default_value' => $setting_values['body']? $setting_values['body']: ''
+	);
+	
+	$form['option_list'] = array(
+		'#type' => 'fieldset',
+		'#title' => 'リスト選択肢',
+	);
+	
+	$form['option_list']['who_list'] = array(
+		'#type' => 'textarea',
+		'#title' => '「あなたは」の選択肢',
+		'#rows' => 10,
+		'#attributes' => array('style' => 'width: 250px'),
+		'#wysiwyg' => false,
+		'#prefix' => '<table><tr><td>',
+		'#suffix' => '</td><td style="padding-left: 20px">',
+		'#default_value' => join($who_options, "\n"),
+	);
+	
+	$form['option_list']['question_list'] = array(
+		'#type' => 'textarea',
+		'#title' => '「ご意見・ご質問の性質」の選択肢',
+		'#rows' => 10,
+		'#attributes' => array('style' => 'width: 250px'),
+		'#wysiwyg' => false,
+		'#suffix' => '</td></tr></table>',
+		'#default_value' => join($question_options, "\n"),
+	);
+	
+	$form['submit'] = array(
+		'#type' => 'submit',
+		'#value' => '設定を保存',
+	);
+	
+	return $form;
+}
+
+function ocw_contact_admin_form_submit($form, &$form_state) {
+	$post_values = $form_state['clicked_button']['#post'];
+	
+	$post_values['who_list'] = str_replace("\r", '', $post_values['who_list']);
+	$post_values['question_list'] = str_replace("\r", '', $post_values['question_list']);
+	
+	$who_list = split("\n", $post_values['who_list']);
+	$question_list = split("\n", $post_values['question_list']);
+	
+	update_ocw_db_values('ocw_contents', NULL, 'ocw_contact', array(
+		'type' => 'admin',
+		'body' => $post_values['contact_message'],
+		'title' => $post_values['title'],
+		'options' => serialize(array(
+			'who' => $who_list,
+			'type' => $question_list
+		)),
+	));
+	
+	path_set_alias('OCW/contact');
+	path_set_alias('OCW/contact', $post_values['alias'], NULL, 'ja');
+	
+	drupal_set_message('設定を保存しました');
+}
+
+function ocw_contact_list_form(&$form_state) {
+	if (isset($_GET['delete'])) {
+		db_query('DELETE FROM {ocw_contacts} WHERE uid=%d', $_GET['delete']);
+	}
+	
+	$setting_values = get_ocw_db_values('ocw_contents', 'options', 'type="admin" and tag="ocw_contact"', 'tag');
+	$setting_values = $setting_values['ocw_contact'];
+	$options = unserialize($setting_values['options']);
+	
+	$filter_forms = array();
+	$queries = array();
+	
+	if (isset($_GET['who'])) {
+		$filter_forms['list']['who'] = 'who';
+		$filter_forms['who'] = $_GET['who'];
+		$queries['who'] = $_GET['who'];
+	}
+	else {
+		$filter_forms['who'] = 0;
+		$filter_forms['list']['who'] = 0;
+	}
+	
+	if (isset($_GET['type'])) {
+		$filter_forms['list']['type'] = 'type';
+		$filter_forms['type'] = $_GET['type'];
+		$queries['type'] = $_GET['type'];
+	}
+	else {		
+		$filter_forms['type'] = 0;
+		$filter_forms['list']['type'] = 0;
+	}
+	
+	if (isset($_GET['start']) && isset($_GET['end'])) {
+		$filter_forms['list']['date'] = 'date';
+		$filter_forms['start'] = array(
+			'year' => (int)substr($_GET['start'], 0, 4),
+			'month' => (int)substr($_GET['start'], 4, 2),
+			'day' => (int)substr($_GET['start'], 6, 2)
+		);
+		$filter_forms['end'] = array(
+			'year' => (int)substr($_GET['end'], 0, 4),
+			'month' => (int)substr($_GET['end'], 4, 2),
+			'day' => (int)substr($_GET['end'], 6, 2)
+		);
+		$queries['start'] = $_GET['start'];
+		$queries['end'] = $_GET['end'];
+	}
+	else {
+		$filter_forms['list']['date'] = 0;
+		$filter_forms['start'] = array(
+			'year' => format_date(time(), 'custom', 'Y'),
+			'month' => format_date(time(), 'custom', 'n'),
+			'day' => format_date(time(), 'custom', 'j'),
+		);
+		$filter_forms['end'] = array(
+			'year' => format_date(time(), 'custom', 'Y'),
+			'month' => format_date(time(), 'custom', 'n'),
+			'day' => format_date(time(), 'custom', 'j'),
+		);
+	}
+	
+	$condition_list = array();
+	if ($filter_forms['list']['who']) {
+		$condition_list[] = 'who = '. $filter_forms['who'];
+	}
+	if ($filter_forms['list']['type']) {
+		$condition_list[] = 'type = '. $filter_forms['type'];
+	}
+	if ($filter_forms['list']['date']) {
+		$condition_list[] = 'date >= '. sprintf("%d%02d%02d000000", $filter_forms['start']['year'] ,$filter_forms['start']['month'], $filter_forms['start']['day']);
+		$condition_list[] = 'date <= '. sprintf("%d%02d%02d245959", $filter_forms['end']['year'] ,$filter_forms['end']['month'], $filter_forms['end']['day']);
+	}
+	
+	$condition_query = '';
+	if (count($condition_list) > 0) {
+		$condition_query = ' WHERE ' . join($condition_list, ' and ');
+	}
+
+	$record_count = db_result(db_query('SELECT count(uid) FROM {ocw_contacts}' . $condition_query));
+	
+	$limit = $_GET['limit']? $_GET['limit']: 0;
+	
+	$query = 'SELECT * FROM {ocw_contacts}' . $condition_query;
+	$query .= ' ORDER BY date desc LIMIT '. $limit . ', 5';	
+	$contact_db = db_query($query);
+
+	$contact_values = array();
+	while ($record = db_fetch_object($contact_db)) {
+		$contact_values[] = (array)$record;
+	}
+		
+	for($i = 0; $i < count($contact_values); $i++) {
+		$tables .= '<fieldset><table>'
+				.  '<tr><td style="width: 80px">差出人：</td><td>' . $contact_values[$i]['name'] . ' ('. $contact_values[$i]['mail'] .')</td></tr>'
+				.  '<tr><td></td><td>' . $options['who'][$contact_values[$i]['who']] .'</td></tr>'
+				.  '<tr><td>送信日時：</td><td>' . $contact_values[$i]['date'] . '</td></tr>'
+				.  '</table>'
+				.  '<hr>'
+				.  '<b>'. $options['type'][$contact_values[$i]['type']] . '</b>'
+				.  '<p style="margin: 5px">'. $contact_values[$i]['content'] . '</p>'
+				.  '<hr>'
+				.  '<div align="right">' . l('削除', $_GET['q'], array('query' => array('delete' => $contact_values[$i]['uid']))) . '</div>'
+				.  '</fieldset>';
+	}
+	
+	$form = array();
+	
+	$form['filter_field'] = array(
+		'#type' => 'fieldset',
+		'#attributes' => array(
+			'style' => 'border: 0px'
+		),
+		'#prefix' => '<p><div style="border: 1px solid #999; background-color: #eee; margin: 5px">',
+		'#suffix' => '</div></p>',
+	);
+	
+	$form['filter_field']['filter_list'] = array(
+		'#type' => 'checkboxes',
+		'#options' => array(
+			'who' => '',
+			'type' => '',
+			'date' => '',
+		),
+		'#prefix' => '<table><tr><td>',
+		'#suffix' => '</td><td>',
+		'#default_value' => $filter_forms['list'],
+	);
+	
+	$form['filter_field']['who_form'] = array(
+		'#type' => 'select',
+		'#options' => $options['who'],
+		'#prefix' => '<table class="form-table"><tr><td>',
+		'#suffix' => '</td><td></td></tr>',
+		'#attributes' => array(
+			'style' => 'width: 180px',
+		),
+		'#default_value' => $filter_forms['who'],
+	);
+	
+	$form['filter_field']['type_form'] = array(
+		'#type' => 'select',
+		'#options' => $options['type'],
+		'#prefix' => '<tr><td>',
+		'#suffix' => '</td><td></td></tr>',
+		'#attributes' => array(
+			'style' => 'width: 180px',
+		),
+		'#default_value' => $filter_forms['type'],
+	);
+	
+	$form['filter_field']['date_form_start'] = array(
+		'#type' => 'date',
+		'#default_value' => array(
+			'year' => $filter_forms['start']['year'],
+			'month' => $filter_forms['start']['month'],
+			'day' => $filter_forms['start']['day'],
+		),
+		'#prefix' => '<tr><td>',
+		'#suffix' => '</td><td>から</td>',
+	);
+	
+	$form['filter_field']['date_form_end'] = array(
+		'#type' => 'date',
+		'#default_value' => array(
+			'year' => $filter_forms['end']['year'],
+			'month' => $filter_forms['end']['month'],
+			'day' => $filter_forms['end']['day'],
+		),
+		'#prefix' => '<td>',
+		'#suffix' => '</td></tr></table></td></table>',
+	);
+
+	$form['filter_field']['filter_submit'] = array(
+		'#type' => 'submit',
+		'#value' => '絞り込む'
+	);
+	
+	$form['message_cnt'] = array(
+		'#type' => 'markup',
+		'#value' => '<p style="text-align: right">'.$record_count.'件のメッセージがあります</p>'
+	);
+	
+	$form['contact_tables'] = array(
+		'#type' => 'markup',
+		'#value' => $tables
+	);
+	
+	$page_link = '';
+	if ($limit-5 >= 0) {
+		$queries['limit'] = $limit-5;
+		$page_link .= l('前へ', $_GET['q'], array('query' => $queries)) . '&nbsp';
+	}
+
+	for ($i = 0; $i*5 < $record_count; $i++) {
+		$queries['limit'] = $i*5;
+		
+		if ($i*5 == $limit) {
+			$link = l(($i+1), $_GET['q'], array('query' => $queries, 'attributes' => array('style' => 'text-decoration:underline')));
+		}
+		else {
+			$link = l(($i+1), $_GET['q'], array('query' => $queries));
+		}
+		$page_link .= '&nbsp;'. $link . '&nbsp;';
+	}
+	
+	if ($limit+5 < $record_count) {
+		$queries['limit'] = $limit+5;
+		$page_link .= '&nbsp;'. l('次へ', $_GET['q'], array('query' => $queries));
+	}
+	
+	$form['page_link'] = array(
+		'#type' => 'markup',
+		'#value' => $page_link,
+		'#prefix' => '<div align="right">',
+		'#suffix' => '</div>',
+	);
+		
+	return $form;
+}
+
+function ocw_contact_list_form_submit($form, &$form_state) {
+	$post_values = $form_state['clicked_button']['#post'];
+	
+	$queries = array();
+	if ($post_values['filter_list']['who']) {
+		$queries['who'] = $post_values['who_form'];
+	}
+	if ($post_values['filter_list']['type']) {
+		$queries['type'] = $post_values['type_form'];
+	}
+	if ($post_values['filter_list']['date']) {
+		$queries['start'] = sprintf("%d%02d%02d", $post_values['date_form_start']['year'] ,$post_values['date_form_start']['month'], $post_values['date_form_start']['day']);
+		$queries['end'] = sprintf("%d%02d%02d", $post_values['date_form_end']['year'] ,$post_values['date_form_end']['month'], $post_values['date_form_end']['day']);
+	}
+	
+	drupal_goto($_GET['q'], $queries);
+}
+
+function ocw_contact_main() {
+	return theme('ocw_content', NULL, drupal_get_form('ocw_contact_main_form'), NULL);
+}
+
+function ocw_contact_main_form($form_state) {
+	$setting_values = get_ocw_db_values('ocw_contents', 'body, title, options', 'type="admin" and tag="ocw_contact"', 'tag');
+	$setting_values = $setting_values['ocw_contact'];
+	$options = unserialize($setting_values['options']);
+	
+	$who_options = $options['who']? $options['who']: array();
+	$question_options = $options['type']? $options['type']: array();
+	
+	$form = array();
+	
+	if (!$form_state['storage']) {
+		$form_state['storage'] = array();
+		$form_state['storage']['name_form'] = '';
+		$form_state['storage']['mail_form'] = '';
+		$form_state['storage']['who_list'] = '';
+		$form_state['storage']['question_list'] = '';
+		$form_state['storage']['question_content'] = '';
+		$form_state['storage']['confirm'] = 0;
+	}
+	
+	$form['contact_message'] = array(
+		'#type' => 'markup',
+		'#value' => $setting_values['body'],
+	);
+		
+	$form['form_field'] = array(
+		'#type' => 'fieldset',
+		'#title' => '',
+		'#attributes' => array('style' => 'border: 0px'),
+		'#prefix' => '<div class="clear-box" style="margin: 10px; margin-top: 25px; background-color: #f9f9f9; border: 1px solid #ddd">',
+		'#suffix' => '</div>'
+	);
+	
+	if (!$form_state['storage']['confirm']) {		
+		$form['form_field']['name_form'] = array(
+			'#type' => 'textfield',
+			'#title' => 'お名前',
+			'#size' => 20,
+			'#attributes' => array(
+				'style' => 'width: 220px',
+			),
+			'#required' => TRUE,
+			'#default_value' => $form_state['storage']['name_form'],
+		);
+		
+		$form['form_field']['mail_form'] = array(
+			'#type' => 'textfield',
+			'#title' => '電子メールアドレス',
+			'#size' => 40,
+			'#attributes' => array(
+				'style' => 'width: 220px',
+			),
+			'#required' => TRUE,
+			'#default_value' => $form_state['storage']['mail_form'],
+		);
+		
+		$form['form_field']['who_list'] = array(
+			'#type' => 'select',
+			'#title' => 'あなたは',
+			'#attributes' => array(
+				'style' => 'width: 180px',
+			),
+			'#options' => $who_options,
+			'#default_value' => $form_state['storage']['who_list'],
+		);
+		
+		$form['form_field']['question_list'] = array(
+			'#type' => 'select',
+			'#title' => 'ご意見・ご質問の性質',
+			'#attributes' => array(
+				'style' => 'width: 180px',
+			),
+			'#options' => $question_options,
+			'#default_value' => $form_state['storage']['question_list'],
+		);
+		
+		$form['form_field']['question_content'] = array(
+			'#type' => 'textarea',
+			'#title' => 'ご意見・ご質問',
+			'#rows' => 10,
+			'#attributes' => array(
+				'style' => 'width: 780px',
+			),
+			'#required' => TRUE,
+			'#default_value' => $form_state['storage']['question_content'],
+			'#wysiwyg' => false,
+		
+		);
+		
+		$form['form_field']['submit'] = array(
+			'#type' => 'submit',
+			'#value' => '確認',
+		);
+	}
+	else if ($form_state['storage']['confirm'] >= 1) {
+		$table_values .= '<div class="clear-box" style="padding: 5px 5px 10px 5px"><div style="border: 1px solid #999; background-color: #fff; padding: 5px;"><table>'
+				.  '<tr><td style="width: 140px">お名前：</td><td>' . $form_state['storage']['name_form'] . '&nbsp;&nbsp;('. $who_options[$form_state['storage']['who_list']] .')</td></tr>'
+				.  '<tr><td>電子メールアドレス：</td><td>' . $form_state['storage']['mail_form'] .'</td></tr>'
+				.  '</table>'
+				.  '<hr>'
+				.  '<b>'. $question_options[$form_state['storage']['question_list']] . '</b>'
+				.  '<p style="margin: 5px">'. $form_state['storage']['question_content'] . '</p></div></div>';
+									
+		if ($form_state['storage']['confirm'] == 1) {
+			$form['form_field']['confirm_tabale'] = array(
+				'#type' => 'markup',
+				'#value' => '<p>以下の内容でよろしいでしょうか？</p>' . $table_values
+			);
+			
+			$form['form_field']['modify_submit'] = array(
+				'#type' => 'submit',
+				'#value' => '修正',
+				'#name' => 'modify_submit',
+			);
+			
+			$form['form_field']['submit'] = array(
+				'#type' => 'submit',
+				'#value' => '送信',
+			);
+		}
+		else {
+			$form['form_field']['confirm_tabale'] = array(
+				'#type' => 'markup',
+				'#value' => '<p>ご協力ありがとうございました</p>' . $table_values
+			);			
+		}
+	}
+	
+	drupal_set_title($setting_values['title']);
+	
+	return $form;
+}
+
+function ocw_contact_main_form_validate($form, &$form_state) {
+	$post_values = $form_state['clicked_button']['#post'];
+	if ($form_state['storage']['confirm'] == 0 && !ereg("[a-zA-Z0-9_.\-]+@[a-zA-Z0-9_.\-]+", $post_values['mail_form'])) {
+		form_set_error('mail_form', '正しい電子メールアドレスを入力してください');
+	}
+}
+
+function ocw_contact_main_form_submit($form, &$form_state) {
+	$post_values = $form_state['clicked_button']['#post'];
+	
+	if ($form_state['storage']) {
+		$form_state['storage'] = array_merge($form_state['storage'], $post_values);
+	}
+	else {
+		$form_state['storage'] = $post_values;
+	}
+	$form_state['storage']['question_content'] = str_replace("\n", '<br />', $form_state['storage']['question_content']);
+	
+	if ($post_values['modify_submit']) {
+		$form_state['storage']['confirm'] = 0;
+	}
+	else {
+		$form_state['storage']['confirm']++;
+	}
+	
+	if ($form_state['storage']['confirm'] == 2) {
+		db_query("INSERT INTO {ocw_contacts} values(NULL, '%s', '%s', %d, %d, '%s', NOW())",
+					$form_state['storage']['name_form'],
+					$form_state['storage']['mail_form'],
+					$form_state['storage']['who_list'],
+					$form_state['storage']['question_list'],
+					$form_state['storage']['question_content']
+				);
+	}
+}
+
+?>

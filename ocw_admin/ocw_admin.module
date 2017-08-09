@@ -1,0 +1,1490 @@
+<?php
+
+function ocw_admin_perm() {
+	return array('view ocw', 'administer ocw');
+}
+
+function ocw_admin_init() {
+	if (user_access('view ocw')) {
+		$path = drupal_get_path('module', 'ocw_admin');
+		drupal_add_js(array('ocw_title' => $settings), 'setting');
+		drupal_add_js($path .'/ocw_admin.js');
+		drupal_add_js($path .'/include/jquery.json-2.2.min.js');
+		
+		drupal_add_css($path .'/ocw.css');
+		drupal_add_css($path .'/include/file_type.css');
+		
+		include($path .'/include/simple_html_dom.php');
+		
+		$content_values = _get_content_values('url, options', 'type = "admin" and tag like "settings_contents"', 'tag');
+		$content_values = $content_values['settings_contents'];
+		
+		$settings = array(
+			'base_path' => base_path(),
+			'path' => base_path().$path,
+			'contents_domain' => $content_values['options'],
+			'contents_root' => $content_values['url'],
+		);
+		drupal_add_js(array('ocw_admin' => $settings), 'setting');
+	}
+}
+
+function ocw_admin_menu() {
+	$items = array();
+	
+	// 検索の「コンテンツ」を無効化
+	$items['search/node'] = NULL;
+	
+	/**************************************************
+	 *					OCW管理 					  *
+	 **************************************************/
+	
+	$items['admin/OCW'] = array(
+		'title' => 'OCW コンテンツ管理',
+		'description' => 'OCW 管理モジュール.',
+		'position' => 'left',
+		'weight' => -5,
+		'page callback' => 'system_admin_menu_block_page',
+		'access arguments' => array('administer site configuration'),
+		'file' => 'system.admin.inc',
+		'file path' => drupal_get_path('module', 'system'),
+		'type' => MENU_NORMAL_ITEM,
+	);
+
+	$items['admin/OCW/OCW'] = array(
+		'title' => '一般設定',
+		'description' => 'カラム幅などの設定',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_admin_settings'),
+		'access arguments' => array('administer ocw'),
+		'weight' => -10,
+		'file' => 'include/ocw_admin.setting.inc',
+		'type' => MENU_NORMAL_ITEM,
+	);
+
+	$items['admin/OCW/classes'] = array(
+		'title' => '公開科目一覧',
+		'description' => '公開科目の設定・作成',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_class_list'),
+		'access arguments' => array('administer ocw'),
+		'weight' => -9,
+		'file' => 'include/ocw_admin.class.inc',
+		'type' => MENU_NORMAL_ITEM,
+	);
+	
+	$items['admin/OCW/classes/view'] = array(
+		'title' => '公開科目一覧',
+		'page callback' => 'drupal_goto',
+		'page arguments' => array('OCW/list'),
+		'access arguments' => array('access content'),
+		'weight' => -11,
+		'type' => MENU_LOCAL_TASK,
+	);
+
+	$items['admin/OCW/classes/list'] = array(
+		'title' => '編集',
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'weight' => -10,
+	);
+
+	$items['admin/OCW/classes/add'] = array(
+		'title' => '追加',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_class_info_edit'),
+		'access arguments' => array('administer ocw'),
+		'file' => 'include/ocw_admin.class.inc',
+		'weight' => -9,
+		'type' => MENU_LOCAL_TASK,
+	);
+
+	$items['admin/OCW/top'] = array(
+		'title' => 'トップページ',
+		'description' => 'トップページの設定',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_admin_top'),
+		'access arguments' => array('administer ocw'),
+		'weight' => -8,
+		'file' => 'include/ocw_admin.top.inc',
+		'type' => MENU_NORMAL_ITEM,
+	);
+	
+	$items['admin/OCW/top/view'] = array(
+		'title' => 'トップページ',
+		'page callback' => 'drupal_goto',
+		'page arguments' => array('OCW/top'),
+		'access arguments' => array('access content'),
+		'weight' => -10,
+		'type' => MENU_LOCAL_TASK,
+	);
+
+	$items['admin/OCW/top/edit'] = array(
+		'title' => '編集',
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'weight' => -9,
+	);
+	
+	$items['admin/OCW/top/news'] = array(
+		'title' => 'ニュース',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_admin_top_news'),
+		'access arguments' => array('administer ocw'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'include/ocw_admin.top.inc',
+		'weight' => -8,
+	);
+
+	$items['admin/OCW/top/links'] = array(
+		'title' => 'リンク',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_admin_top_links'),
+		'access arguments' => array('administer ocw'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'include/ocw_admin.top.inc',
+		'weight' => -7,
+	);
+
+	$items['admin/OCW/top/%/delete'] = array(
+		'title' => '削除',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_admin_top_image_delete_confirm', 3),
+		'access arguments' => array('administer ocw'),
+		'type' => MENU_CALLBACK,
+		'file' => 'include/ocw_admin.top.inc',
+	);
+
+	$items['admin/OCW/content'] = array(
+		'title' => 'コンテンツ',
+		'description' => 'コンテンツの設定',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_content_list'),
+		'access arguments' => array('administer ocw'),
+		'weight' => -3,
+		'file' => 'include/ocw_admin.content.inc',
+	);
+
+	$items['admin/OCW/content/list'] = array(
+		'title' => 'リスト',
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'weight' => -10,
+	);
+
+	$items['admin/OCW/footer'] = array(
+		'title' => 'フッター',
+		'description' => 'フッターの設定',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_admin_foot'),
+		'access arguments' => array('administer ocw'),
+		'weight' => -2,
+		'file' => 'include/ocw_admin.footer.inc',
+	);
+
+	$items['admin/OCW/content/create'] = array(
+		'title' => '作成',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_content_create'),
+		'access arguments' => array('administer ocw'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'include/ocw_admin.content.inc',
+	);
+
+	/********** トップページ **********/
+	$items['OCW/top'] = array(
+		'title' => '法政大学 Open Course Ware',
+		'description' => 'トップページ',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_content_top'),
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'include/ocw.content.inc',
+	);
+
+	$items['OCW/top/view'] = array(
+		'title' => 'トップページ',
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'weight' => -11,
+	);
+	 
+	$items['OCW/top/edit'] = array(
+		'title' => '編集',
+		'page callback' => 'drupal_goto',
+		'page arguments' => array('admin/OCW/top'),
+		'access arguments' => array('administer ocw'),
+		'weight' => -10,
+		'type' => MENU_LOCAL_TASK,
+	);
+	
+	$items['OCW/top/news'] = array(
+		'title' => 'ニュース',
+		'page callback' => 'drupal_goto',
+		'page arguments' => array('admin/OCW/top/news'),
+		'access arguments' => array('administer ocw'),
+		'weight' => -9,
+		'type' => MENU_LOCAL_TASK,
+	);
+	
+	$items['OCW/top/links'] = array(
+		'title' => 'リンク',
+		'page callback' => 'drupal_goto',
+		'page arguments' => array('admin/OCW/top/links'),
+		'access arguments' => array('administer ocw'),
+		'weight' => -8,
+		'type' => MENU_LOCAL_TASK,
+	);
+
+	/********** 公開科目一覧 **********/
+	$items['OCW/list'] = array(
+		'title' => '公開科目一覧',
+		'description' => '公開科目一覧',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_content_class_list'),
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'include/ocw.content.inc',
+	);
+
+	$items['OCW/list/view'] = array(
+		'title' => '公開科目一覧',
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'weight' => -11,
+	);
+	
+	$items['OCW/list/edit'] = array(
+		'title' => '編集',
+		'page callback' => 'drupal_goto',
+		'page arguments' => array('admin/OCW/classes'),
+		'access arguments' => array('administer ocw'),
+		'weight' => -10,
+		'type' => MENU_LOCAL_TASK,
+	);
+	
+	$items['OCW/list/add'] = array(
+		'title' => '追加',
+		'page callback' => 'drupal_goto',
+		'page arguments' => array('admin/OCW/classes/add'),
+		'access arguments' => array('administer ocw'),
+		'weight' => -9,
+		'type' => MENU_LOCAL_TASK,
+	);
+
+	/********** 講義 **********/
+	$items['OCW/class/%'] = array(
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_content_class', 2),
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'include/ocw.content.inc',
+	);
+
+	$items['OCW/class/%/syllabus'] = array(
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_content_class', 2, 3),
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'include/ocw.content.inc',
+	);
+
+	$items['OCW/class/%/video/%'] = array(
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_content_class', 2, 3, 4),
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'include/ocw.content.inc',
+	);
+	
+	$items['OCW/class/%/list'] = array(
+		'title' => '公開科目一覧',
+		'page callback' => 'drupal_goto',
+		'page arguments' => array('admin/OCW/classes'),
+		'access arguments' => array('administer ocw'),
+		'weight' => -10,
+		'type' => MENU_LOCAL_TASK,
+	);
+	
+	$items['OCW/class/%/view'] = array(
+		'title' => '表示',
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'weight' => -9,
+	);
+	
+	$items['OCW/class/%/edit'] = array(
+		'title' => '編集',
+		'page callback' => '_ocw_goto',
+		'page arguments' => array('admin/OCW/class',2,'edit'),
+		'access arguments' => array('administer ocw'),
+		'weight' => -8,
+		'type' => MENU_LOCAL_TASK,
+	);
+	
+	$items['OCW/content/%'] = array(
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_content_view', 2),
+		'access arguments' => array('access content'),
+		'file' => 'include/ocw_admin.content.inc',
+	);
+
+	$items['OCW/content/%/view'] = array(
+		'title' => '表示',
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'weight' => -10,
+	);
+
+	$items['OCW/content/%/edit'] = array(
+		'title' => '編集',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_content_edit', 2),
+		'access arguments' => array('administer ocw'),
+		'type' => MENU_LOCAL_TASK,
+		'weight' => -9,
+		'file' => 'include/ocw_admin.content.inc',
+	);
+
+	$items['OCW/content/%/delete'] = array(
+		'title' => '削除',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_content_delete', 2),
+		'access arguments' => array('administer ocw'),
+		'type' => MENU_LOCAL_TASK,
+		'weight' => -8,
+		'file' => 'include/ocw_admin.content.inc',
+	);
+
+	$items['OCW/content/%/list'] = array(
+		'title' => 'リスト',
+		'page callback' => 'ocw_content_list_goto',
+		'access arguments' => array('administer ocw'),
+		'type' => MENU_LOCAL_TASK,
+		'weight' => -7,
+		'file' => 'include/ocw_admin.content.inc',
+	);
+
+	$items['admin/OCW/class/%'] = array(
+		'page callback' => 'drupal_goto',
+		'page arguments' => array('admin/OCW/classes'),
+		'access arguments' => array('view ocw'),
+		'weight' => -5,
+		'type' => MENU_CALLBACK,
+	);
+
+	$items['admin/OCW/class/%/list'] = array(
+		'title' => '公開科目一覧',
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'weight' => -10,
+	);
+
+	$items['admin/OCW/class/%/view'] = array(
+		'title' => '表示',
+		'page callback' => '_ocw_goto',
+		'page arguments' => array('OCW/class', 3),
+		'access arguments' => array('view ocw'),
+		'type' => MENU_LOCAL_TASK,
+		'weight' => -9,
+	);
+
+	$items['admin/OCW/class/%/edit'] = array(
+		'title' => '編集',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_class_info_edit', 3),
+		'access arguments' => array('administer ocw'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'include/ocw_admin.class.inc',
+		'weight' => -8,
+	);
+
+	$items['admin/OCW/class/%/edit/info'] = array(
+		'title' => '基本情報',
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'weight' => -10,
+	);
+
+	$items['admin/OCW/class/%/edit/syllabus'] = array(
+		'title' => 'シラバス',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_class_syllabus_edit', 3),
+		'access arguments' => array('administer ocw'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'include/ocw_admin.class.inc',
+		'weight' => -9,
+	);
+
+	$items['admin/OCW/class/%/edit/content'] = array(
+		'title' => '講義内容',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_class_content_edit', 3),
+		'access arguments' => array('administer ocw'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'include/ocw_admin.class.inc',
+		'weight' => -8,
+	);
+
+	$items['admin/OCW/class/%/delete'] = array(
+		'title' => '削除',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('ocw_class_delete', 3),
+		'access arguments' => array('administer ocw'),
+		'type' => MENU_CALLBACK,
+		'file' => 'include/ocw_admin.class.inc',
+		'weight' => -7,
+	);
+
+	return $items;
+}
+
+function _ocw_goto($base, $uid, $suffix=NULL) {
+	drupal_goto($base . '/' . $uid . ($suffix? '/' . $suffix: ''));
+}
+
+function ocw_admin_search($op = 'search', $keys = NULL) {
+	switch($op) {
+		case 'name':
+			if (user_access('view ocw')) {
+				return 'OCW コンテンツ';
+			}
+			break;
+			
+		case 'reset':
+			variable_del('ocw_contents_cron_last_change');
+			variable_del('ocw_contents_cron_last_id');
+			variable_del('ocw_classes_cron_last_change');
+			variable_del('ocw_classes_cron_last_id');
+			break;
+			
+		case 'search':
+			if (user_access('view ocw')) {
+				$found = array();
+				
+				$classes_hits = do_search($keys, 'ocw_classes');
+				foreach($classes_hits as $item) {
+					$class_values = _get_class_values('*', 'uid='.$item->sid);
+					$class_values = $class_values[$item->sid];
+					
+					if (!$class_values['open']) {
+						continue;
+					}
+					
+					$found[] = array(
+						'type' => 'ocw_class',
+						'uid' => $item->sid,
+						'faculty' => $class_values['faculty'],
+						'class' => $class_values['class'],
+						'professor' => $class_values['professor'],
+						'url' => $class_values['url'],
+						'snippet' => search_excerpt($keys, $class_values['syllabus']),
+					);
+				}
+				
+				$contents_hits = do_search($keys, 'ocw_contents');
+				foreach($contents_hits as $item) {
+					$content_values = _get_content_values('title, body, url', 'uid='.$item->sid);
+					$content_values = $content_values[$item->sid];
+					
+					if ($content_values['url'] === '-') {
+						continue;
+					}
+					
+					$body_content = unserialize($content_values['body']);
+					$center_body = '<p>' . $body_content['center'] . '</p>';
+					$right_body = '<p>' . $body_content['right'] . '</p>';
+					
+					$found[] = array(
+						'type' => 'ocw_content',
+						'uid' => $item->sid,
+						'title' => $content_values['title'],
+						'alias' => _get_ocw_content_alias($item->sid),
+						'snippet' => search_excerpt($keys, $center_body.$right_body),
+					);
+				}
+				
+				return $found;
+			}
+			break;
+	}
+}
+
+function ocw_admin_search_page($found) {
+	$output = '';
+	foreach($found as $item) {
+		if ($item['type'] === 'ocw_class') {
+			if ($item['url']) {
+				$output.= '<h3>' .l($item['class'], $item['url'], array('attributes' => array('target' => '_blank'))). '</h3>';
+			}
+			else {
+				$output.= '<h3>' .l($item['class'], 'OCW/class/'.$item['uid']). '</h3>';
+			}
+			$output.= '<table class="ocw-search-result"><tr><td>学部・研究科：&nbsp;&nbsp;&nbsp;</td><td>'. $item['faculty'] .'</td></tr><tr><td>教員名： </td><td>'. $item['professor'] . '</td></tr></table>';
+			$output.= '<p class="ocw-search-result"><small>'.$item['snippet'].'</small></p>';
+		}
+		else if ($item['type'] === 'ocw_content') {
+			$output.= '<h3>' .l($item['title'], $item['alias']). '</h3>';
+			$output.= '<p class="ocw-search-result"><small>'.$item['snippet'].'</small></p>';
+		}
+	}
+	
+	return $output;
+}
+
+function ocw_admin_update_shutdown() {
+	global $contents_last_change, $contents_last_id;
+	global $classes_last_change, $classes_last_id;
+	
+	if ($contents_last_change && $contents_last_id) {
+		variable_set('ocw_contents_cron_last_change', $contents_last_change);
+		variable_set('ocw_contents_cron_last_id', $contents_last_id);
+	}
+	if ($classes_last_change && $classes_last_id) {
+		variable_set('ocw_classes_cron_last_change', $classes_last_change);
+		variable_set('ocw_classes_cron_last_id', $classes_last_id);
+	}
+}
+
+function ocw_admin_update_index() {
+	global $contents_last_change, $contents_last_id;
+	global $classes_last_change, $classes_last_id;
+	
+	register_shutdown_function('ocw_admin_update_shutdown');
+	
+	$contents_last_change = variable_get('ocw_contents_cron_last_change', 0);
+	$contents_last_id = variable_get('ocw_contents_cron_last_id', 0);
+	$classes_last_change = variable_get('ocw_classes_cron_last_change', 0);
+	$classes_last_id = variable_get('ocw_classes_cron_last_id', 0);
+	
+	$contents_values = _get_content_values('title, body, UNIX_TIMESTAMP(last_modified)',
+							'type="ocw_content" and url!="-" and (UNIX_TIMESTAMP(last_modified)>'.$contents_last_change.' or uid>'.$contents_last_id.')',
+							'uid',
+							'order by last_modified ASC');
+	if ($contents_values) {
+		foreach($contents_values as $id => $values) {
+			$body_content = unserialize($values['body']);
+			$center_body = '<p>' . $body_content['center'] . '</p>';
+			$right_body = '<p>' . $body_content['right'] . '</p>';
+			
+			$body = '<h3>' . $values['title'] . '</h3>'. $center_body . $right_body;
+			search_index($id, 'ocw_contents', $body);
+			
+			$contents_last_change = $values['UNIX_TIMESTAMP(last_modified)'];
+			$contents_last_id = $id;
+		}
+	}
+	
+	$classes_values = _get_class_values('faculty, class, professor, type, profile, syllabus, UNIX_TIMESTAMP(last_modified)',
+							'open=1 and (UNIX_TIMESTAMP(last_modified)>'.$classes_last_change.' or uid>'.$classes_last_id.')',
+							'uid',
+							'order by last_modified ASC');
+	if ($classes_values) {
+		foreach($classes_values as $id => $values) {
+			$profile_body = str_get_html(_get_class_profile($values))->plaintext;
+			$syllabus_body = '<p>' . str_get_html($values['syllabus'])->plaintext . '</p>';
+			
+			$body = '<h3>' . $profile_body . '</h3><h4>' . $values['type'] . '</h4>' . $syllabus_body;
+			search_index($id, 'ocw_classes', $body);
+			
+			$classes_last_change = $values['UNIX_TIMESTAMP(last_modified)'];
+			$classes_last_id = $id;
+		}
+	}	
+}
+
+function ocw_admin_theme() {
+	return array(
+		'ocw_top' => array(
+			'arguments' => array('news' => NULL, 'links' => NULL),
+			'template' => 'ocw_top',
+		),
+		'ocw_news_form' => array(
+			'arguments' => array('form' => NULL),
+		),
+		'ocw_content' => array(
+			'arguments' => array('left' => NULL, 'center' => NULL, 'right' => NULL),
+			'template' => 'ocw_content',
+		),
+		'ocw_navigation_menu_form' => array(
+			'arguments' => array('form' => NULL),
+		),
+		'ocw_contents_list_form' => array(
+			'arguments' => array('form' => NULL),
+		),
+		'ocw_class_list_form' => array(
+			'arguments' => array('form' => NULL),
+		),
+		'ocw_class_label_list_form' => array(
+			'arguments' => array('form' => NULL),
+		),
+		'ocw_class_content_list_form' => array(
+			'arguments' => array('form' => NULL),
+		),
+		'ocw_content_list_form' => array(
+			'arguments' => array('form' => NULL),
+		),
+		'ocw_admin_list_form' => array(
+			'arguments' => array('form' => NULL),
+		),
+	);
+}
+
+function hocw_preprocess_page(&$variables) {
+	$contents = _get_content_values('body', 'type = "admin"', 'tag');
+
+	$variables['footer_center'] = _get_filter_html($contents['footer']['body']);
+	$variables['footer_left'] = _get_filter_html($contents['footer_left']['body']);
+	$variables['footer_right'] = _get_filter_html($contents['footer_right']['body']);
+	
+	$variables['ocw_search'] = '<div id="ocw-search-block">' . drupal_get_form('ocw_search_form') . '</div>';
+}
+
+function ocw_search_form(&$form_state) {
+	global $base_path;
+	
+	$path = drupal_get_path('module', 'ocw_admin');
+	
+	$form = array();
+	$form['#action'] = $base_path.'search/ocw_admin/';
+	
+	$form['submit'] = array(
+		'#type' => 'submit',
+		'#value' => '検索',
+		'#submit' => array('ocw_search_form_submit'),
+		'#id' => 'ocw-search-submit',
+	);
+	
+	$form['ocw_search_form'] = array(
+		'#title' => 'サイト内検索',
+		'#type' => 'textfield',
+		'#size' => 30,
+		'#default_value' => '',
+		'#attributes' => array('title' => '検索キーワードを入力してください', 'style' => 'width: 225px;'),
+		'#field_suffix' => drupal_render($form['submit'])
+	);
+	
+	return $form;
+}
+
+function ocw_search_form_submit($form, &$form_state) {
+	if (isset($_REQUEST['destination'])) {
+		unset($_REQUEST['destination']);
+	}
+	if (isset($_REQUEST['edit']['destination'])) {
+		unset($_REQUEST['edit']['destination']);
+	}
+
+	$form_id = $form['form_id']['#value'];
+	$form_state['redirect'] = 'search/ocw_admin/'. trim($form_state['values'][$form_id]);
+}
+
+function ocw_admin_preprocess_ocw_top(&$variables) {
+	$navigation = theme('blocks', 'left');
+	
+	$columns = _get_content_values('options', 'tag = "settings_columns"', 'tag');
+	$columns = unserialize($columns['settings_columns']['options']);
+	
+	$variables['news_width'] = (int)$columns['menu'] + (int)$columns['content'] - 1;
+	$variables['links_width'] = 998 - $variables['news_width'];
+
+	$variables['base_path'] = base_path();
+	$variables['theme_path'] = drupal_get_path('theme', variable_get('theme_default', 'default_theme'));
+	
+	$contents = _get_content_values('body, url', 'type = "admin"', 'tag');
+	$variables['teaser'] = _get_filter_html($contents['top_teaser']['body']);
+	$variables['explain'] = _get_filter_html($contents['top_explain']['body']);
+	$variables['background_image'] = $contents['top_image']['url'];
+	
+	$variables['template_files'][] = 'ocw-top';
+}
+
+function ocw_admin_preprocess_ocw_content(&$variables) {
+	$navigation = theme('blocks', 'left');
+	
+	$columns = _get_content_values('options', 'tag = "settings_columns"', 'tag');
+	$columns = unserialize($columns['settings_columns']['options']);
+	
+	if (!$variables['left']) {
+		$navigation_menu = _get_content_values('options', 'tag = "settings_menu"', 'tag');
+		$navigation_menu = unserialize($navigation_menu['settings_menu']['options']);
+		$variables['left'] = _get_navigation_menu($navigation_menu);
+	}
+	
+	$variables['left_column'] = (int)$columns['menu']-1;
+	
+	if ($variables['right']) {
+		$variables['center_column'] = (int)$columns['content']-1;
+		$variables['right_column'] = 997 - $variables['left_column'] - $variables['center_column'];
+	}
+	else {
+		$variables['center_column'] = 998 - $variables['left_column'];
+		$variables['right_column'] = 0;
+	}
+	
+	$variables['template_files'][] = 'ocw-content';
+}
+
+function theme_ocw_news_form($form) {
+	drupal_add_tabledrag('ocw_news_form-sort', 'order', 'sibling', 'sort');
+
+	$header = array(
+		array('data' => '', 'width' => '25px'),
+		array('data' => '内容', 'width' => '500px'),
+		array('data' => '日付', 'width' => '80px'),
+		array('data' => '', 'width' => '25px'),
+		array('data' => '', 'width' => '25px'),
+		''
+	);
+
+	foreach (element_children($form) as $key) {
+		$form[$key]['sort']['#attributes']['class'] = 'sort';
+
+		$row = array('');
+		
+		$content = $form[$key]['content']['#value'];
+		$date = $form[$key]['date']['#value'];
+
+		$row[] = htmlspecialchars($content);
+		$row[] = htmlspecialchars($date['year'].'/'.$date['month'].'/'.$date['day']);
+		$row[] = '<a href="#" onclick="edit_news_item_value('.$key.',\''.$content.'\','.$date['year'].','.$date['month'].','.$date['day'].'); return false;">編集</a>';
+		$row[] = '<a href="#" onclick="delete_news_item_value('.$key.'); return false;">削除</a>';
+		$row[] = drupal_render($form[$key]['sort']);
+		$rows[] = array('data' => $row, 'class' => 'draggable');
+	}
+
+	$output = '<p><div style="height: 200px; overflow: auto;">';
+	$output.= theme('table', $header, $rows, array('id' => 'ocw_news_form-sort'));
+	$output.= '</div></p>';
+
+	return $output;
+}
+
+function _get_navigation_menu($menu_values, $target='_self', $active=TRUE) {
+	$path = isset($_GET['q']) ? $_GET['q'] : '';
+	$alias = $path? drupal_get_path_alias($path): '';
+	
+	$output = '<div class="ocw-navigation-menu-block">';
+	$output.= $active? '<ul>': '';	
+	if ($menu_values) {
+		foreach($menu_values as $index => $values) {
+			$is_active = strpos($values['url'], $path) !== FALSE || strpos($values['url'], $alias) !== FALSE;
+			
+			$output .= $active? '<li': '<p';
+			$output .= $is_active? ' class="active">': '>';
+			$output .= l($values['label'], $values['url'], array(
+					'attributes' => array(
+						'target' => $target,
+						'class' => $is_active? 'active': '',
+					)
+				));
+			$output .= $active? '</li>': '</p>';
+		}
+	}
+	$output.= $active? '</ul>': '';	
+	$output.= '</div>';
+	
+	return $output;
+}
+
+function theme_ocw_navigation_menu_form($form) {
+	drupal_add_tabledrag('ocw_navigation_menu_form-sort', 'order', 'sibling', 'sort');
+
+	$header = array(
+		array('data' => '', 'width' => '25px'),
+		array('data' => 'ラベル', 'width' => '100px'),
+		array('data' => 'URL', 'width' => '180px'),
+		array('data' => '', 'width' => '25px'),
+		array('data' => '', 'width' => '25px'),
+		''
+	);
+
+	foreach (element_children($form) as $key) {
+		$form[$key]['sort']['#attributes']['class'] = 'sort';
+
+		$row = array('');
+		
+		$label = $form[$key]['label']['#value'];
+		$url = $form[$key]['url']['#value'];
+
+		$row[] = htmlspecialchars($label);
+		$row[] = htmlspecialchars($url);
+		$row[] = '<a href="#" onclick="edit_navigation_menu_item('.$key.',\''.$label.'\',\''.$url.'\'); return false;">編集</a>';
+		$row[] = '<a href="#" onclick="delete_navigation_menu_item('.$key.'); return false;">削除</a>';
+		$row[] = drupal_render($form[$key]['sort']);
+		$rows[] = array('data' => $row, 'class' => 'draggable');
+	}
+
+	$output = '<p>';
+	$output.= theme('table', $header, $rows, array('id' => 'ocw_navigation_menu_form-sort'));
+	$output.= '</p>';
+
+	return $output;
+}
+
+function theme_ocw_class_list_form($form) {
+	$header = array(
+		array('data' => '学部・研究科', 'style' => 'width: 150px'),
+		array('data' => '講義名', 'style' => 'width: 150px'),
+		array('data' => '教員名', 'style' => 'width: 80px'),
+		array('data' => '区分', 'style' => 'min-width: 40px'),
+		'公開',
+		array('data' => '操作', 'colspan' => '2'),
+	);
+
+	foreach (element_children($form) as $key) {
+		if ($key === 'open_status') continue;
+
+		$row = array();
+
+		$row[] = $form[$key]['faculty']['#value'];
+		$row[] = l($form[$key]['class']['#value'], $form[$key]['url']['#value']? $form[$key]['url']['#value']: 'OCW/class/'.$key);
+		$row[] = $form[$key]['professor']['#value'];
+		$row[] = $form[$key]['type']['#value'];
+		$row[] = drupal_render($form['open_status'][$key]);
+		$row[] = l('編集', 'admin/OCW/class/'.$key.'/edit');
+		$row[] = l('削除', 'admin/OCW/class/'.$key.'/delete');
+		$rows[] = array('data' => $row);
+	}
+	$output = '<p>';
+	$output.= theme('table', $header, $rows, array('class' => 'list-table'));
+	$output.= '</p>';
+
+	return $output;
+}
+
+function theme_ocw_class_label_list_form($form) {
+	drupal_add_tabledrag('class_label_list-sort', 'order', 'sibling', 'sort');
+
+	$header = array(
+		array('data' => '', 'width' => '25px'),
+		'講義ラベル',
+		array('data' => '', 'width' => '30px'),
+		array('data' => '', 'width' => '30px'),
+		'sort' => '',
+	);
+
+	foreach (element_children($form) as $key) {
+		$form[$key]['sort']['#attributes']['class'] = 'sort';
+
+		$row = array('');
+
+		$row[] = $form[$key]['label']['#value'];
+		$row[] = '<a href="#" onclick="edit_class_contents('.$key.');">編集</a>';
+		$row[] = '<a href="#" onclick="delete_class_contents('.$key.');">削除</a>';
+		$row[] = drupal_render($form[$key]['sort']);
+		$rows[] = array('data' => $row, 'class' => 'draggable');
+	}
+
+	$output = '<div class="clear-box">';
+	$output.= theme('table', $header, $rows, array('id' => 'class_label_list-sort', 'style' => 'width: 100%;'));
+	$output.= '</div>';
+
+	return $output;
+}
+
+function theme_ocw_class_content_list_form($form) {
+	$uid = $form['#uid'];
+	$cid = $form['#cid'];
+	drupal_add_tabledrag('class_content_list-sort', 'order', 'sibling', 'sort');
+
+	$header = array(
+		array('data' => '', 'width' => '25px'),
+		array('data' => 'ラベル', 'width' => '100px'),
+		array('data' => 'パス'),
+		array('data' => '', 'width' => '30px'),
+		array('data' => '', 'width' => '30px'),
+		'sort' => '',
+	);
+
+	foreach (element_children($form) as $key) {
+		$form[$key]['sort']['#attributes']['class'] = 'sort';
+
+		$row = array('');
+
+		$ext = $form[$key]['path']['#ext'];
+		$row[] = '<ul><li class="content-file content-'. $ext .'">'.$form[$key]['label']['#value'].'</li></ul>';
+
+		$path = $form[$key]['path']['#value'];
+		if (!$form[$key]['path']['#is_edit']) {
+			if (strlen($path) > 50) {
+				$path = substr($path, 0, 50) . '...';
+			}
+		}
+		$row[] = $path;
+		$row[] = '<a href="#" onclick="edit_class_content('.$key.');">編集</a>';
+		$row[] = '<a href="#" onclick="delete_class_content('.$key.');">削除</a>';
+		$row[] = drupal_render($form[$key]['sort']);
+		$rows[] = array('data' => $row, 'class' => 'draggable');
+	}
+
+	$output = '<div class="clear-box">';
+	$output.= theme('table', $header, $rows, array('id' => 'class_content_list-sort', 'style' => 'width: 100%;'));
+	$output.= '</div>';
+
+	return $output;
+}
+
+function theme_ocw_content_list_form($form) {
+	$header = array(
+		'タイトル',
+		'エイリアス',
+		'カラム数',
+		array('data' => '操作', 'colspan' => '2'),
+	);
+
+	foreach (element_children($form) as $content) {
+		$row = array();
+		$path = 'OCW/content/'.$form[$content]['uid']['#value'];
+
+		$row[] = l($form[$content]['title']['#value'], $path);
+		$row[] = $form[$content]['alias']['#value'];
+		$row[] = $form[$content]['columns']['#value'];
+		$row[] = l('編集', $path.'/edit');
+		$row[] = l('削除', $path.'/delete');
+		$rows[] = array('data' => $row);
+	}
+	$output = '<p>';
+	$output.= theme('table', $header, $rows, array('class' => 'list-table'));
+	$output.= '</p>';
+
+	return $output;
+}
+
+function theme_ocw_contents_list_form($form) {	
+	static $contents_list_form_id = 0;
+	
+	$form_id = 'ocw-contents-list-'.($contents_list_form_id++).'-sort';
+	drupal_add_tabledrag($form_id, 'order', 'sibling', 'sort');
+	
+	$header = array(
+		array('data' => '', 'width' => '15px'),
+		'',
+		'sort' => '',
+	);
+
+	foreach (element_children($form) as $key) {
+		$form[$key]['sort']['#attributes']['class'] = 'sort';
+		
+		$row = array('');
+		$row[] = drupal_render($form[$key]['form']['#value']);
+		$row[] = drupal_render($form[$key]['sort']);
+		$rows[] = array('data' => $row, 'class' => 'draggable');
+	}
+	$output = '<p>';
+	$output.= theme('table', $header, $rows, array('id' => $form_id, 'class' => 'contents-list-form', 'style' => 'width:100%'));
+	$output.= '</p>';
+
+	return $output;
+}
+
+function theme_ocw_admin_list_form($form) {	
+	$header = array(
+		'画像プレビュー',
+		'有効 <span style="color: red;">*</span>',
+		'操作',
+	);
+
+	foreach (element_children($form) as $key) {
+		if ($key === 'image_default') continue;
+
+		$row = array();
+		
+		$path = $form[$key]['path']['#value'].$form[$key]['name']['#value'];
+		$hash = _get_hash_file_string($path);
+
+		$row[] = '<img src='. base_path().$path .' width="150"><br /><div style="text-align: center;">'. l($form[$key]['name']['#value'], $path) . '</div>';
+		$row[] = drupal_render($form['image_default'][$hash]);
+		$row[] = l('削除', 'admin/OCW/top/'.$hash.'/delete');
+		$rows[] = array('data' => $row);
+	}
+	$output = '<p>';
+	$output.= theme('table', $header, $rows, array('class' => 'list-table'));
+	$output.= '</p>';
+
+	return $output;
+}
+
+function _update_content_values($uid, $tag, $values) {
+	update_ocw_db_values('ocw_contents', $uid, $tag, $values);
+}
+
+function _get_content_values($fields, $conditions='', $key='uid', $order=NULL) {
+	return get_ocw_db_values('ocw_contents', $fields, $conditions, $key, $order);
+}
+
+function _update_class_values($uid, $values) {
+	update_ocw_db_values('ocw_classes', $uid, NULL, $values);
+}
+
+function _get_class_values($fields, $conditions='', $key='uid', $order=NULL) {
+	return get_ocw_db_values('ocw_classes', $fields, $conditions, $key, $order);
+}
+
+function update_ocw_db_values($db, $uid, $tag, $values) {
+	if ($uid != NULL) {
+		if (db_result(db_query("SELECT * FROM {%s} WHERE uid=%d", $db, $uid))) {
+		 	foreach($values as $key => $value) {
+				if ($key === 'uid') {
+					continue;
+				}
+
+				if ($key === 'video' || $key === 'open') {
+					db_query("UPDATE {%s} SET %s=%d WHERE uid=%d", $db, $key, $value, $uid);
+				}
+				else {
+					db_query("UPDATE {%s} SET %s='%s' WHERE uid=%d", $db, $key, $value, $uid);
+				}
+			}
+			
+			db_query("UPDATE {%s} SET last_modified=NOW() WHERE uid=%d", $db, $uid);
+		}
+		else {
+			drupal_set_message('指定された {uid: '.$uid.'} のレコードは存在しません', 'error');
+		}
+	}
+	elseif ($tag != NULL) {
+		if (db_result(db_query("SELECT * FROM {%s} WHERE tag='%s'", $db, $tag))) {
+		 	foreach($values as $key => $value) {
+				if ($key === 'tag') {
+					continue;
+				}
+
+				db_query("UPDATE {%s} SET %s='%s' WHERE tag='%s'", $db, $key, $value, $tag);
+			}
+			
+			db_query("UPDATE {%s} SET last_modified=NOW() WHERE tag='%s'", $db, $tag);
+		}
+		else {
+			$values['tag'] = $tag;
+			$tag = NULL;
+		}
+	}
+
+	if ($uid == NULL && $tag == NULL) {
+		if ($db === 'ocw_contents') {
+			$insert_values = array(
+				'type' => 'content',
+				'tag' => '',
+				'title' => '',
+				'body' => '',
+				'url' => '',
+				'options' => ''
+			);
+		}
+		else {
+			$insert_values = array(
+				'faculty' => '',
+				'class' => '',
+				'professor' => '',
+				'type' => '',
+				'url' => '',
+				'profile' => '',
+				'syllabus' => '',
+				'video' => 0,
+				'open' => 1,
+				'contents' => NULL,
+			);
+		}
+
+	 	foreach($values as $key => $value) {
+			$insert_values[$key] = $value;
+		}
+
+		if ($db === 'ocw_contents') {
+			db_query("INSERT INTO {ocw_contents} values(NULL, '%s', '%s', '%s', '%s', '%s', '%s', NOW())",
+					$insert_values['type'],
+					$insert_values['tag'],
+					$insert_values['title'],
+					$insert_values['body'],
+					$insert_values['url'],
+					$insert_values['options']
+				);
+		}
+		else {
+			db_query("INSERT INTO {ocw_classes} values(NULL, '%s', '%s', '%s', '%s', '%s', '%s', '%s', %d, %d, '%s', NOW())",
+					$insert_values['faculty'],
+					$insert_values['class'],
+					$insert_values['professor'],
+					$insert_values['type'],
+					$insert_values['url'],
+					$insert_values['profile'],
+					$insert_values['syllabus'],
+					$insert_values['video'],
+					$insert_values['open'],
+					$insert_values['contents']
+				);
+		}
+	}
+}
+
+function get_ocw_db_values($db, $fields, $conditions=NULL, $key='uid', $order=NULL) {
+	$values = array();
+
+	if ($fields === '*') {
+		$query_str = 'SELECT * FROM {' . $db . '}';
+	}
+	else {
+		$query_str = 'SELECT '. $key . ',' . $fields .' FROM {' . $db . '}';
+	}
+
+	if ($conditions) {
+		$query_str .= ' WHERE ' . $conditions;
+	}
+	if ($order) {
+		$query_str .= ' ' . $order;
+	}
+	$result = db_query($query_str);
+
+	while ($record = db_fetch_object($result)) {
+		$record = (array)$record;
+		foreach($record as $field => $value) {
+			$values[$record[$key]][$field] = $value;
+		}
+	}
+	return $values;
+}
+
+function _get_ocw_file_list($path ,$find_hash=NULL, $filter=array('jpg', 'jpeg', 'png' , 'gif')) {
+	$list = array();
+	
+	if ($filter) {
+		$regex = '';
+		foreach($filter as $ext) {
+			$regex .= '(' . $ext . ')|';
+		}
+		$regex = substr($regex, 0, strlen($regex)-1);
+	}
+
+	$path = variable_get('ocw_contents_path', file_directory_path().'/ocw') . '/'.$path.'/';
+	if (is_dir($path)) {
+		if ($dir = opendir($path)) {
+			while (($file = readdir($dir)) !== false) {
+				if ($file != "." && $file != "..") {
+					if ($find_hash) {
+						$hash = _get_hash_file_string($path.$file);
+						if ($hash === $find_hash) {
+							$list = array(
+								'path' => $path,
+								'name' => $file,
+								'extension' => $extension,
+							);
+							break;
+						}
+					}
+					else {
+						$extension = pathinfo($file, PATHINFO_EXTENSION);
+						
+						$is_filter = FALSE;
+						if (!$filter || ($filter && preg_match("/".$regex."/i", $extension))) {
+							$is_filter = TRUE;
+						}
+						
+						if ($is_filter) {
+							$list[] = array(
+								'path' => $path,
+								'name' => $file,
+								'extension' => $extension,
+							);
+						}
+					}
+				}
+			} 
+			closedir($dir);
+		}
+	}
+
+	return $list;
+}
+
+function _get_hash_file_string($path) {
+	return 'path_'.hash('md5', $path);
+}
+
+function _get_filter_html($str) {
+	if ($str) {
+		$filter_id = db_result(db_query("SELECT format FROM {filter_formats} WHERE name='Full HTML'"));
+		return check_markup($str, $filter_id, FALSE);
+	}
+	else {
+		return '';
+	}
+}
+
+function _get_ocw_content_alias($uid) {
+	return db_result(db_query("SELECT dst FROM {url_alias} WHERE src='%s'", 'OCW/content/'.$uid));
+}
+
+function _get_next_uid($db) {
+	$stutus_db = db_query("SHOW TABLE STATUS LIKE '%s'", $db);
+	$uid = db_fetch_object($stutus_db)->Auto_increment;
+
+	return $uid;
+}
+
+function _get_extension($path) {
+	$ext = pathinfo($path, PATHINFO_EXTENSION);
+	return strtolower($ext);
+}
+
+function _get_protocol($path) {
+	if (strpos($path, 'http://') === 0) {
+		return 'http';
+	}
+	else if (strpos($path, 'rtmp://') === 0) {
+		return 'rtmp';
+	}
+	else {
+		return 'other';
+	}
+}
+
+function _get_video_tag($path, $is_auto_play=FALSE, $option=NULL) {
+	if (_get_protocol($path) === 'rtmp') {
+		$settings = _get_content_values('url, options', 'type = "admin" and (tag = "settings_contents" or tag = "settings_stream")', 'tag');
+		$contents_domain = $settings['settings_contents']['options'];
+		$stream = $settings['settings_stream']['options'];
+		$stream_path = $settings['settings_stream']['url'];
+		
+		if (strpos($path, 'rtmp://') === 0) {
+			$start_index = strlen($contents_domain.$stream_path)+1;
+			$path_length = strlen($path);
+			$video_name = substr($path, $start_index, $path_length-$start_index-4);
+		}
+		else {
+			drupal_set_message('ストリーミングできません', 'error');
+		}
+
+		$flv_filter = '[swf file="'. $video_name . '" stream="' . $stream . '"';
+	}
+	else {
+		$flv_filter = '[swf file="'. $path . '"';
+	}
+	
+	if ($option) {
+		foreach($option as $key => $value) {
+			$flv_filter.= ' '. $key . '="'.$value.'"';
+		}
+	}
+	else {
+		$flv_filter.= ' width="100%" height="200"';
+	}
+	
+	if ($is_auto_play) {
+		$flv_filter.= ' autoPlay="true"';
+	}
+	$flv_filter.= ']';
+	
+	return '<div class="ocw_video-block">' ._get_filter_html($flv_filter).'</div>';
+}
+
+function _set_default_form_id(&$form) {
+	$form['dummy_form_default_submit'] = array(
+		'#type' => 'hidden',
+		'#value' => '0',
+		'#id' => 'dummy_form_default_submit',
+		'#weight' => 19
+	);
+	$form['set_form_id'] = array(
+		'#type' => 'markup',
+		'#value' => '<script type="text/javascript">set_form_id(document.getElementsByName("dummy_form_default_submit").item(0).form.id);</script>',
+		'#weight' => 20
+	);
+}
+
+function _set_navigation_menu_form($form_state, $weight, $title='ナビゲーションメニュー', $attributes=NULL) {
+	$navigation_menu = $form_state['storage']['ocw_navigation_menu'];
+	
+	$form = array(
+		'#type' => 'fieldset',
+		'#title' => $title,
+		'#collapsible' => FALSE,
+		'#weight' => $weight,
+		'#attributes' => $attributes
+	);
+
+	$form['navigation_menu_items']['#tree'] = TRUE;
+	$form['navigation_menu_items']['#theme'] = 'ocw_navigation_menu_form';
+	$form['navigation_menu_items']['#weight'] = 0;
+	
+	if ($navigation_menu) {
+		foreach ($navigation_menu as $key => $values) {
+			$form['navigation_menu_items'][$key]['label'] = array('#value' => $values['label']);
+			$form['navigation_menu_items'][$key]['url'] = array('#value' => $values['url']);
+			$form['navigation_menu_items'][$key]['sort'] = array(
+				'#type' => 'weight',
+				'#delta' => count($navigation_menu),
+				'#default_value' => $key,
+			);
+		}
+	}
+
+	$form['menu_delete'] = array(
+		'#type' => 'submit',
+		'#id' => 'menu-delete-submit',
+		'#weight' => 1,
+		'#attributes' => array('style' => 'display: none'),
+		'#submit' => array('_navigation_menu_form_delete_submit'),
+	);
+	
+	$form['menu_label'] = array(
+		'#type' => 'textfield',
+		'#title' => 'ラベル',
+		'#size' => 15,
+		'#default_value' => '',
+		'#id' => 'menu-item-label',
+		'#prefix' => '<table><tr><td>',
+		'#weight' => 2,
+	);
+
+	$form['menu_url'] = array(
+		'#type' => 'textfield',
+		'#title' => 'URL',
+		'#size' => 35,
+		'#default_value' => '',
+		'#id' => 'menu-item-url',
+		'#prefix' => '</td><td style="padding: 5px">',
+		'#weight' => 3,
+	);
+
+	$form['menu_add'] = array(
+		'#type' => 'submit',
+		'#prefix' => '</td><td><br />',
+		'#suffix' => '</td></tr></table>',
+		'#value' => '追加',
+		'#id' => 'menu-add-submit',
+		'#weight' => 4,
+		'#submit' => array('_navigation_menu_form_add_submit'),
+		'#validate' => array('_navigation_menu_form_validate'),
+	);
+	
+	$form['menu_modify_dummy'] = array(
+		'#type' => 'submit',
+		'#value' => '更新',
+		'#submit' => array('_navigation_menu_form_add_submit'),
+		'#validate' => array('_navigation_menu_form_validate'),
+		'#attributes' => array('style' => 'display: none'),
+	);
+	
+	$form['edit_menu_item'] = array(
+		'#type' => 'hidden',
+		'#value' => '-1',
+		'#id' => 'edit-menu-item',
+	);
+	
+	$form['delete_menu_item'] = array(
+		'#type' => 'hidden',
+		'#value' => '-1',
+		'#id' => 'delete-menu-item',
+	);
+	
+	return $form;
+}
+
+function _navigation_menu_form_validate($form, &$form_state) {
+	$post_values = $form_state['clicked_button']['#post'];
+	$menu_label = $post_values['menu_label'];
+	$menu_url = $post_values['menu_url'];
+	
+	if (!$menu_label) {
+		form_set_error('menu_label', 'メニュー項目のURLを指定してください');
+	}
+	if (!$menu_url) {
+		form_set_error('menu_url', 'メニュー項目のラベルを指定してください');
+	}
+}
+
+function _navigation_menu_form_add_submit($form, &$form_state) {
+	$post_values = $form_state['clicked_button']['#post'];
+	if ($form_state['storage']) {
+		$form_state['storage'] = array_merge($form_state['storage'], $post_values);
+	}
+	else {
+		$form_state['storage'] = $post_values;
+	}
+	$edit_item_id = $form_state['storage']['edit_menu_item'];
+
+	_change_navigation_menu_form_order($form_state['storage']);
+	
+	if ($edit_item_id !== '-1') {
+		$form_state['storage']['ocw_navigation_menu'][$edit_item_id] = array(
+			'label' => $form_state['storage']['menu_label'],
+			'url' => $form_state['storage']['menu_url'],
+		);		
+	}
+	else {
+		$form_state['storage']['ocw_navigation_menu'][] = array(
+			'label' => $form_state['storage']['menu_label'],
+			'url' => $form_state['storage']['menu_url'],
+		);
+	}
+}
+
+function _navigation_menu_form_delete_submit($form, &$form_state) {
+	$post_values = $form_state['clicked_button']['#post'];
+	if ($form_state['storage']) {
+		$form_state['storage'] = array_merge($form_state['storage'], $post_values);
+	}
+	else {
+		$form_state['storage'] = $post_values;
+	}
+	_change_navigation_menu_form_order($form_state['storage']);
+	
+	$delete_item_id = $form_state['storage']['delete_menu_item'];
+	
+	if ($delete_item_id !== '-1') {
+		unset($form_state['storage']['ocw_navigation_menu'][$delete_item_id]);
+	}
+}
+
+function _change_navigation_menu_form_order(&$storage) {
+	if (count($storage['ocw_navigation_menu']) && $storage['navigation_menu_items']) {
+		$menu_list = array();
+		foreach($storage['navigation_menu_items'] as $key => $weight) {
+			$menu_list[$key] = $storage['ocw_navigation_menu'][$key];
+		}
+		$storage['ocw_navigation_menu'] = $menu_list;
+	}
+}
+
+function _get_ocw_contents_list($form_id, $directory=NULL, $extention=NULL) {
+	$output = '<div class="ocw-contents-list" func="javascript:set_contents_path(\''.$form_id.'\',[link]);"';
+	if ($directory) $output .= ' directory="'.$directory.'"';
+	if ($extention) $output .= ' ext="'.$extention.'"';
+	$output.= '></div>';
+	
+	return $output;
+}
+
+function _get_block_contents($title, $body) {
+	static $ocw_block_id = 0;
+	
+	$block = new stdClass;
+	$block->subject = $title;
+	$block->content = $body;
+	$block->module  = 'ocw_admin';
+	$block->region  = 'ocw';
+	$block->delta = $ocw_block_id++;
+	
+	return theme('block', $block);
+}
+
+function _get_class_profile($class_values) {
+	$class_values['profile'] = unserialize($class_values['profile']);
+
+	if (!$class_values['profile']['radio']) {
+		$profile = $class_values['class'] . '<br />' . $class_values['faculty'] . '&nbsp;&nbsp;' . $class_values['professor'] . ' 教授';
+	}
+	else {
+		$profile = $class_values['profile']['content'];
+	}
+	
+	return $profile;
+}
+
+function _set_ocw_admin_form(&$form) {
+	$form['ocw_admin_form_start'] = array(
+		'#type' => 'markup',
+		'#value' => '<div id="ocw_admin-form">',
+		'#weight' => -100,
+	);
+	
+	$form['ocw_admin_form_end'] = array(
+		'#type' => 'markup',
+		'#value' => '</div>',
+		'#weight' => 100,
+	);
+}
+
+?>

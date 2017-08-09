@@ -1,0 +1,170 @@
+<?php
+
+function ocw_admin_install() {
+	drupal_install_schema('ocw_admin');
+
+	$path = file_create_path('ocw');
+	file_check_directory($path, FILE_CREATE_DIRECTORY);
+	variable_set('ocw_contents_path', $path);
+	
+	$admin_path = file_create_path('ocw/admin');
+	file_check_directory($admin_path, FILE_CREATE_DIRECTORY);
+	$contents_path = file_create_path('ocw/contents');
+	file_check_directory($contents_path, FILE_CREATE_DIRECTORY);
+}
+
+function ocw_admin_uninstall() {
+	db_query("DELETE FROM {menu_links} WHERE module = 'ocw_admin'");
+	menu_cache_clear_all();
+	drupal_uninstall_schema('ocw_admin');
+}
+
+function ocw_admin_schema() {
+	$schema['ocw_contents'] = array(
+		'description' => 'OCW contents',
+		'fields' => array(
+			'uid' => array(
+				'description' => 'Unique ID',
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE
+			),
+			'type' => array(
+				'description' => 'Contents type',
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => TRUE,
+				'default' => 'content'
+			),
+			'tag' => array(
+				'description' => 'Contents tag',
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => TRUE,
+				'default' => ''
+			),
+			'title' => array(
+				'description' => 'Contents type',
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'default' => ''
+			),
+			'body' => array(
+				'description' => 'Contents body',
+				'type' => 'text',
+				'not null' => FALSE,
+				'size' => 'big',
+			),
+			'url' => array(
+				'description' => 'Contents URL',
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'default' => ''
+			),
+			'options' => array(
+				'description' => 'Contents option',
+				'type' => 'text',
+				'not null' => FALSE,
+				'size' => 'big',
+			),
+			'last_modified' => array(
+				'description' => 'Contents Last Modified',
+				'type' => 'datetime',
+				'not null' => TRUE,
+			),
+		),
+		'primary key' => array('uid'),
+	);
+
+	$schema['ocw_classes'] = array(
+		'description' => 'OCW classes',
+		'fields' => array(
+			'uid' => array(
+				'description' => 'Unique ID',
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE
+			),
+			'faculty' => array(
+				'description' => 'Faculty name',
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => TRUE,
+				'default' => ''
+			),
+			'class' => array(
+				'description' => 'Class name',
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => TRUE,
+				'default' => ''
+			),
+			'professor' => array(
+				'description' => 'Professor name',
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => TRUE,
+				'default' => ''
+			),
+			'type' => array(
+				'description' => 'Class type',
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => TRUE,
+				'default' => ''
+			),
+			'url' => array(
+				'description' => 'Class URL',
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'default' => ''
+			),
+			'profile' => array(
+				'description' => 'Class profile',
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'default' => ''
+			),
+			'syllabus' => array(
+				'description' => 'Class syllabus',
+				'type' => 'text',
+				'not null' => FALSE,
+				'size' => 'big',
+			),
+			'video' => array(
+				'description' => 'Introduction video id',
+				'type' => 'int',
+				'not null' => FALSE,
+				'default' => 0
+			),
+			'open' => array(
+				'description' => 'Open flag',
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 1,
+				'size' => small
+			),
+			'contents' => array(
+				'description' => 'Class contents',
+				'type' => 'text',
+				'not null' => FALSE,
+			),
+			'last_modified' => array(
+				'description' => 'Class Last Modified',
+				'type' => 'datetime',
+				'not null' => TRUE,
+			),
+		),
+		'unique keys' => array(
+			'class' => array('class'),
+		),
+		'primary key' => array('uid'),
+	);
+
+	return $schema;
+}
+
